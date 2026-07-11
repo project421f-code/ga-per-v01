@@ -6,6 +6,18 @@ Aplikasi ini adalah sistem monitoring dan manajemen operasional GA yang mencakup
 
 ---
 
+## 🌐 Deploy Status
+
+Aplikasi sudah aktif dan berjalan di:
+
+| Mode | URL |
+|:----|:----|
+| **Demo (tanpa login)** | [`https://project421f-code.github.io/ga-per-v01/?demo=1`](https://project421f-code.github.io/ga-per-v01/?demo=1) |
+| **Login Firebase** | [`https://project421f-code.github.io/ga-per-v01/`](https://project421f-code.github.io/ga-per-v01/) |
+| **Repository GitHub** | [`https://github.com/project421f-code/ga-per-v01`](https://github.com/project421f-code/ga-per-v01) |
+
+---
+
 ## 🏗️ Arsitektur
 
 ```
@@ -35,8 +47,8 @@ Aplikasi ini adalah sistem monitoring dan manajemen operasional GA yang mencakup
 ### 1. Clone Repository & Install Dependencies
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/ga-performance-dashboard.git
-cd ga-performance-dashboard
+git clone https://github.com/project421f-code/ga-per-v01.git
+cd ga-per-v01
 npm install
 ```
 
@@ -119,18 +131,17 @@ Akses di `http://localhost:5173`. Aplikasi akan berjalan dalam **mode demo** (me
 ```bash
 # Buat repository baru di GitHub
 # Lalu remote ke repository Anda
-git remote add origin https://github.com/YOUR_USERNAME/ga-performance-dashboard.git
+git remote add origin https://github.com/project421f-code/ga-per-v01.git
 ```
 
 #### B. Update `vite.config.ts`
 ```ts
-// Ganti 'ga-performance-dashboard' dengan nama repository GitHub Anda
-base: process.env.NODE_ENV === 'production' ? '/nama-repo-anda/' : '/',
+base: process.env.NODE_ENV === 'production' ? '/ga-per-v01/' : '/',
 ```
 
 #### C. Update `package.json`
 ```json
-"homepage": "https://YOUR_USERNAME.github.io/nama-repo-anda"
+"homepage": "https://project421f-code.github.io/ga-per-v01"
 ```
 
 #### D. Deploy
@@ -138,7 +149,16 @@ base: process.env.NODE_ENV === 'production' ? '/nama-repo-anda/' : '/',
 npm run deploy
 ```
 
-GitHub Pages akan aktif di: `https://YOUR_USERNAME.github.io/nama-repo-anda`
+GitHub Pages akan aktif di: `https://project421f-code.github.io/ga-per-v01`
+
+---
+
+### ⚡ Mode Demo Langsung
+
+Anda bisa langsung mengakses aplikasi tanpa login melalui:
+```
+https://project421f-code.github.io/ga-per-v01/?demo=1
+```
 
 ---
 

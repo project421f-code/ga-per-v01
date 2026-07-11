@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "homepage": "https://project421f.github.io/ga-per-v01",
+  "homepage": "https://project421f-code.github.io/ga-per-v01",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
