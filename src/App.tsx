@@ -24,7 +24,7 @@ import AssetManagementView from "./components/AssetManagementView";
 import KosManagementView from "./components/KosManagementView";
 import LoginPage from "./components/LoginPage";
 import { useAuth } from "./context/AuthContext";
-import { isGasConfigured, createTask, updateTaskStatus } from "./services/dataService";
+import { createTask, updateTaskStatus } from "./services/dataService";
 import { 
   Home, 
   Sparkles, 
