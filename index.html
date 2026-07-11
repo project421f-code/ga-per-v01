@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="GA Performance Dashboard - Sistem Digitalisasi Operasional General Affair terintegrasi dengan Google Sheets" />
+    <meta name="author" content="GA Performance Team" />
+    <title>GA Performance Dashboard</title>
+
+    <style>
+      /* Prevent FOUC (Flash of unstyled content) while loading */
+      .app-loading {
+        position: fixed;
+        inset: 0;
+        background: #020617;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.5s ease;
+      }
+      .app-loading.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .app-loading .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(99, 102, 241, 0.2);
+        border-top-color: #6366f1;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+    <script type="module" crossorigin src="/ga-per-v01/assets/index-VygBq7Ao.js"></script>
+    <link rel="stylesheet" crossorigin href="/ga-per-v01/assets/index-BBfooR0R.css">
+  </head>
+  <body>
+    <div id="loading" class="app-loading">
+      <div class="spinner"></div>
+    </div>
+    <div id="root"></div>
+    <script>
+      // Hide loading screen once React is mounted
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          var el = document.getElementById('loading');
+          if (el) el.classList.add('hidden');
+        }, 300);
+      });
+    </script>
+  </body>
+</html>
