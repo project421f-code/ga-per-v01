@@ -1,0 +1,6 @@
+{
+  "name": "GA Performance & KPI Dashboard",
+  "description": "Pusat pengelolaan operasional General Affair (GA) digital terintegrasi untuk tim Maintenance, Housekeeping, Security, dan Cleaning Service dengan otomatisasi KPI dan analisis AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
