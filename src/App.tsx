@@ -26,7 +26,7 @@ import KosManagementView from "./components/KosManagementView";
 import MarkdownRenderer from "./components/MarkdownRenderer";
 import LoginPage from "./components/LoginPage";
 import { useAuth } from "./context/AuthContext";
-import { isGasConfigured, fetchAiAnalysis } from "./services/dataService";
+import { isGasConfigured, fetchAiAnalysis, createTask, updateTaskStatus } from "./services/dataService";
 import { 
   Wrench, 
   Home, 
@@ -189,7 +189,7 @@ export default function App() {
   const kpis = getKPIStats();
 
   // Handle task submission
-  const handleCreateTask = (e: React.FormEvent) => {
+  const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !newLocation.trim() || !newReporter.trim()) return;
 
@@ -214,18 +214,10 @@ export default function App() {
       slaMinutes: Number(newSlaMinutes),
     };
 
-    const newActivity: ActivityLog = {
-      id: `LOG-${Math.floor(1000 + Math.random() * 9000)}`,
-      taskId: taskId,
-      team: newTeam,
-      actor: newReporter,
-      action: "Membuat Tiket",
-      timestamp: new Date().toISOString(),
-      details: `${newTitle} dilaporkan di ${newLocation} (SLA target ${newSlaMinutes} menit).`
-    };
-
+    // Simpan ke lokal state & kirim ke Google Sheets via GAS
     setTasks([newTask, ...tasks]);
-    setLogs([newActivity, ...logs]);
+    const result = await createTask(newTask);
+    if (result.log) setLogs([result.log, ...logs]);
 
     // reset forms
     setNewTitle("");
@@ -236,7 +228,7 @@ export default function App() {
   };
 
   // State transitions: Pending -> In-Progress -> Completed -> Verifying/Verified
-  const handleTransitionStatus = (taskId: string, nextStatus: TaskStatus) => {
+  const handleTransitionStatus = async (taskId: string, nextStatus: TaskStatus) => {
     const updatedTasks = tasks.map(task => {
       if (task.id === taskId) {
         let actualMin = task.actualMinutes;
@@ -262,38 +254,26 @@ export default function App() {
       return task;
     });
 
+    // Kirim update status ke Google Sheets via GAS
     const targetTask = tasks.find(t => t.id === taskId);
-    if (targetTask) {
-      let actionStr = "";
-      let detailsStr = "";
-      const actorName = "Staff Lapangan";
-
-      if (nextStatus === TaskStatus.IN_PROGRESS) {
-        actionStr = "Mulai Pengerjaan";
-        detailsStr = `Tim operasional memulai penanganan kerusakan/tugas di lokasi ${targetTask.location}.`;
-      } else if (nextStatus === TaskStatus.COMPLETED) {
-        actionStr = "Selesai Pengerjaan";
-        detailsStr = `Pekerjaan fisik selesai dilakukan di lapangan. Menunggu verifikasi kualitas dari Pelapor.`;
-      }
-
-      const newActivity: ActivityLog = {
-        id: `LOG-${Math.floor(1000 + Math.random() * 9000)}`,
-        taskId: taskId,
-        team: targetTask.team,
-        actor: actorName,
-        action: actionStr,
-        timestamp: new Date().toISOString(),
-        details: detailsStr
-      };
-
-      setLogs([newActivity, ...logs]);
+    let actualMinutes: number | undefined;
+    let completedAt: string | undefined;
+    if (nextStatus === TaskStatus.COMPLETED && targetTask) {
+      const createdDate = new Date(targetTask.createdAt);
+      actualMinutes = Math.min(
+        Math.max(10, Math.round((new Date().getTime() - createdDate.getTime()) / 60000)),
+        Math.round(targetTask.slaMinutes * (0.6 + Math.random() * 0.6))
+      );
+      completedAt = new Date().toISOString();
     }
+    const statusResult = await updateTaskStatus(taskId, nextStatus, actualMinutes, completedAt);
+    if (statusResult.log) setLogs([statusResult.log, ...logs]);
 
     setTasks(updatedTasks);
   };
 
   // Submit feedback & CSAT rating to verify a completed task
-  const handleVerifyTask = (taskId: string) => {
+  const handleVerifyTask = async (taskId: string) => {
     const updatedTasks = tasks.map(task => {
       if (task.id === taskId) {
         return {
@@ -306,19 +286,9 @@ export default function App() {
       return task;
     });
 
-    const targetTask = tasks.find(t => t.id === taskId);
-    if (targetTask) {
-      const newActivity: ActivityLog = {
-        id: `LOG-${Math.floor(1000 + Math.random() * 9000)}`,
-        taskId: taskId,
-        team: targetTask.team,
-        actor: targetTask.reporter,
-        action: "Verifikasi Tiket",
-        timestamp: new Date().toISOString(),
-        details: `Karyawan memverifikasi pengerjaan dengan tingkat kepuasan bintang ${selectedRating}/5.`
-      };
-      setLogs([newActivity, ...logs]);
-    }
+    // Kirim verifikasi + rating ke Google Sheets via GAS
+    const verifyResult = await updateTaskStatus(taskId, TaskStatus.VERIFIED, undefined, undefined, selectedRating);
+    if (verifyResult.log) setLogs([verifyResult.log, ...logs]);
 
     setTasks(updatedTasks);
     setVerifyingTaskId(null);
@@ -514,7 +484,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative overflow-x-hidden selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex font-sans relative overflow-x-hidden selection:bg-indigo-500 selection:text-white">
       
       {/* Background Mesh Gradients */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
@@ -523,100 +493,96 @@ export default function App() {
         <div className="absolute top-[40%] right-[15%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px]" />
       </div>
 
-      {/* Top Main Navigation Header */}
-      <header className="relative z-10 h-18 border-b border-white/10 flex items-center justify-between px-6 bg-slate-900/45 backdrop-blur-md sticky top-0">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-gradient-to-tr from-indigo-600 via-blue-500 to-emerald-400 rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20">
-            <Award className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold tracking-tight text-white">GA Performance & KPI Dashboard</h1>
-              <span className="hidden sm:inline-block bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[9px] font-bold px-1.5 py-0.5 rounded">
-                GAS INTEGRATED
-              </span>
+      {/* ===== SIDEBAR NAVIGATION ===== */}
+      <aside className="relative z-10 w-16 md:w-56 shrink-0 border-r border-white/10 bg-slate-900/60 backdrop-blur-md flex flex-col items-center md:items-stretch py-4 gap-1 min-h-screen sticky top-0">
+        {/* Logo */}
+        <div className="flex flex-col items-center md:items-stretch px-0 md:px-3 mb-4">
+          <div className="flex items-center justify-center md:justify-start gap-2.5 mb-1">
+            <div className="w-9 h-9 bg-gradient-to-tr from-indigo-600 via-blue-500 to-emerald-400 rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20 shrink-0">
+              <Award className="w-4 h-4 text-white" />
             </div>
-            <p className="text-[10px] text-slate-400 uppercase tracking-widest font-mono">
+            <div className="hidden md:block">
+              <h1 className="text-[13px] font-bold leading-tight text-white">GA Performance</h1>
+              <p className="text-[7px] text-slate-500 uppercase tracking-widest font-mono leading-tight">Dashboard</p>
+            </div>
+          </div>
+          <div className="hidden md:block border-b border-white/10 mt-3 mb-1" />
+        </div>
+
+        {/* Nav Items */}
+        <nav className="flex flex-row md:flex-col items-stretch gap-1 px-1 md:px-2 w-full">
+          {[
+            { key: "dashboard", icon: Smartphone, label: "Dashboard", color: "text-indigo-400" },
+            { key: "surveys", icon: Users, label: "Survey", color: "text-yellow-400" },
+            { key: "assets", icon: Boxes, label: "Aset & Opname", color: "text-amber-400" },
+            { key: "kos", icon: Home, label: "Kos GA", color: "text-amber-400" },
+            { key: "prd", icon: FileText, label: "Dokumen PRD", color: "text-emerald-400" },
+          ].map(item => {
+            const Icon = item.icon;
+            const isActive = currentTab === item.key;
+            return (
+              <button
+                key={item.key}
+                onClick={() => setCurrentTab(item.key as any)}
+                className={`flex items-center justify-center md:justify-start gap-2.5 px-2 md:px-3 py-2.5 md:py-2 rounded-xl text-xs font-semibold transition-all relative group ${
+                  isActive
+                    ? "bg-white/10 text-white shadow-sm border border-white/10"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent"
+                }`}
+              >
+                {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-indigo-400 rounded-full hidden md:block" />}
+                <Icon className={`w-4 h-4 shrink-0 ${item.color}`} />
+                <span className="hidden md:inline text-[11px]">{item.label}</span>
+                {/* Tooltip on mobile */}
+                <span className="md:hidden absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg border border-white/10 whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Bottom status */}
+        <div className="hidden md:block mt-auto px-3 pt-4 border-t border-white/10">
+          <div className="flex items-center gap-2 text-[9px] text-slate-500">
+            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+            <span className="font-mono">LIVE</span>
+            <span className="font-mono">{currentTime || "00:00"}</span>
+          </div>
+        </div>
+      </aside>
+
+      {/* ===== MAIN AREA ===== */}
+      <div className="relative z-10 flex-1 flex flex-col min-h-screen">
+
+      {/* Simplified Top Header */}
+      <header className="h-14 border-b border-white/10 flex items-center justify-between px-4 md:px-6 bg-slate-900/30 backdrop-blur-md shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="md:hidden w-8 h-8 bg-gradient-to-tr from-indigo-600 via-blue-500 to-emerald-400 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20 shrink-0">
+            <Award className="w-4 h-4 text-white" />
+          </div>
+          <div className="hidden sm:block">
+            <h1 className="text-sm font-bold tracking-tight text-white">GA Performance & KPI Dashboard</h1>
+            <p className="text-[8px] text-slate-500 uppercase tracking-widest font-mono">
               SISTEM DIGITALISASI OPERASIONAL GENERAL AFFAIR
             </p>
           </div>
+          <span className="hidden sm:inline-block bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[8px] font-bold px-1.5 py-0.5 rounded">
+            GAS INTEGRATED
+          </span>
         </div>
 
-        {/* View Toggles & Clock */}
-        <div className="flex items-center gap-4">
-          {/* Main Navigation Toggles */}
-          <div className="bg-black/40 border border-white/10 p-1 rounded-xl flex gap-1">
-            <button
-              onClick={() => setCurrentTab("dashboard")}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                currentTab === "dashboard"
-                  ? "bg-white/10 text-white shadow"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <Smartphone className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Aplikasi Dashboard</span>
-            </button>
-            <button
-              onClick={() => setCurrentTab("surveys")}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                currentTab === "surveys"
-                  ? "bg-white/10 text-white shadow"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <Users className="w-3.5 h-3.5 text-yellow-400" />
-              <span>Survey Stakeholder</span>
-            </button>
-            <button
-              onClick={() => setCurrentTab("assets")}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                currentTab === "assets"
-                  ? "bg-white/10 text-white shadow"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <Boxes className="w-3.5 h-3.5 text-amber-400" />
-              <span>Aset & Stock Opname</span>
-            </button>
-            <button
-              onClick={() => setCurrentTab("kos")}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                currentTab === "kos"
-                  ? "bg-white/10 text-white shadow"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <Home className="w-3.5 h-3.5 text-amber-400" />
-              <span>Pengelolaan Kos GA</span>
-            </button>
-            <button
-              onClick={() => setCurrentTab("prd")}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                currentTab === "prd"
-                  ? "bg-white/10 text-white shadow"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Dokumen PRD Resmi</span>
-            </button>
+        {/* System status live widget */}
+        <div className="flex items-center gap-3">
+          <div className="text-right text-[11px]">
+            <p className="font-mono text-emerald-400 font-bold flex items-center gap-1.5 justify-end">
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse inline-block"></span>
+              LIVE
+            </p>
+            <p className="text-[9px] text-slate-500 font-mono tracking-tight">{currentTime || "00:00:00"}</p>
           </div>
-
-          <div className="h-8 w-[1px] bg-white/10 hidden md:block"></div>
-
-          {/* System status live widget */}
-          <div className="hidden md:flex items-center gap-3">
-            <div className="text-right text-xs">
-              <p className="font-mono text-emerald-400 font-bold flex items-center gap-1.5 justify-end">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse inline-block"></span>
-                LIVE SIMULATION
-              </p>
-              <p className="text-[10px] text-slate-500 font-mono tracking-tight">{currentTime || "00:00:00"}</p>
-            </div>
-            <div className="w-9 h-9 rounded-full bg-slate-800 border border-white/15 flex items-center justify-center font-bold text-slate-300">
-              GA
-            </div>
+          <div className="w-8 h-8 rounded-full bg-slate-800 border border-white/15 flex items-center justify-center font-bold text-xs text-slate-300">
+            GA
           </div>
         </div>
       </header>
@@ -1386,7 +1352,7 @@ export default function App() {
       </main>
 
       {/* Status Bar Footer */}
-      <footer className="relative z-10 h-10 bg-black/50 border-t border-white/10 px-6 flex flex-col sm:flex-row items-center justify-between text-[10px] text-slate-500 gap-2 py-2 sm:py-0">
+      <footer className="h-10 bg-black/50 border-t border-white/10 px-4 md:px-6 flex flex-col sm:flex-row items-center justify-between text-[10px] text-slate-500 gap-2 py-2 sm:py-0 shrink-0">
         <div className="flex gap-4 sm:gap-6">
           <span>DB STATUS: <span className="text-emerald-400 font-bold">CONNECTED</span></span>
           <span className="hidden sm:inline">|</span>
@@ -1397,6 +1363,8 @@ export default function App() {
           <span className="text-slate-400">LAST LIVE SYNC: {currentTime || "00:00:00"}</span>
         </div>
       </footer>
+
+      </div>{/* End main area wrapper */}
 
     </div>
   );
